@@ -23,6 +23,7 @@ As a holistic-yet-muticulous Data Analyst and aspiring Data Scientist, I know no
 * **Python** programming for Advanced Data Analysis & Visualizations | **Pandas, NumPy, Matplotlib, Seaborn, Scikit-learn, SciPy**
 * **Machine Learning** in Python | **Gradient Boosting (XGBoost) Regression, Random Forest Regression, Decision Tree Regression, Linear Regression**
 * **Statistical Analysis & Statistical Modeling** in Python | **Chi-Squared Test of Independence**
+* **R** programmming in RStudio | **Biostatistics** using **gplot2, dplyr, ggsurvfit, survival, survminer, broom**
 * **Business Intelligence Thinking & Data Science Methodology**: Reviewing the datasets at hand and coming up with ideas and approaches which can help create a comprehensive and exciting project that can bring about practical insights. Then, formulating a structured plan which will also approach the analysis from multiple angles and techniques.
 * **Soft Skills**: **Storytelling, Communication** | The whole Project conveyed as a Story for Business Stakeholders & Enthusiasts to Read & Learn About
 
