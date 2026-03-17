@@ -1,0 +1,295 @@
+---
+title: "Biostatistics: Survival Analysis Project"
+output: html_notebook
+---
+
+
+```{r}
+
+# Cleaning & Setting Up the Environment
+
+rm(list = ls(all.names = TRUE))
+gc() # Freeing up Memory and Reporting Memory Usage
+
+# Loading Relevant Packages & Libraries
+install.packages("ggplot2", dependencies = TRUE)
+install.packages("dplyr")
+install.packages("ggsurvfit")
+
+BiocManager::install("survival")
+BiocManager::install("ggsurvfit")
+BiocManager::install("survminer")
+
+library(tidyverse)
+library(survival)
+library(ggsurvfit)
+library(survminer)
+
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+```{r}
+
+# Loading in the Dataset and Previewing
+df <- survival::rotterdam
+head(df, 7)
+# colnames(df)
+
+```
+
+```{r}
+
+# Key Columns for the Survival Analysis
+
+# Censoring
+## 1: Event Happened
+## 0: Censored
+
+unique(df$death) # Confirming that this Column has only '0's and '1's
+
+df <- df |> mutate(status = death) # Intuitively, Assigning similar Binary Values to the "Status" Column for Censoring/Not Censoring
+# head(df)
+table(df$status)
+
+# Time-to-Event
+df <- df |> mutate(rtime_yrs = rtime/365.25) # Relapse, in Days
+
+```
+
+```{r}
+
+# Creating a Survival Object
+surv_obj <- Surv(time = df$rtime_yrs, event = df$status)
+head(surv_obj, 6) # Follow-Up Time | "+" indicates that the Object was Right-Censored
+s1 <- survfit(surv_obj ~ 1, data = df)
+
+```
+
+```{r}
+
+# Creating a Survival Curve
+summary(s1)
+
+```
+
+```{r}
+
+# Plotting the Survival Curve Using a Kaplan-Meier Plot
+km_curve <- ggsurvfit(s1, linewidth = 1) +
+  labs(x = 'Years', y = 'Overall Survival') +
+  add_confidence_interval() +
+  add_risktable() +
+  scale_ggsurvfit() # +
+  #coord_cartesian(xlim = (0, 7)) # Will Show the Plot for the First 7 Years - would Omit this line if Wanting to View the Whole Curve
+
+```
+
+
+```{r}
+
+# Estimating 'x'-Year Survival
+## What is the Probability of Surviving Beyond a Certain Number of Years (x)?
+summary(s1, times = 1)$surv*100 # Probability of Suriving Beyond 1 Year
+
+```
+
+```{r}
+
+# What is the Probability of NOT Relapsing after >=4 Years?
+km_curve +
+  geom_vline(xintercept = 4, linetype = 'dashed', color = 'red', size = 1) +
+  geom_hline(yintercept = summary(s1, times = 4)$surv, linetype = 'dashed', color = 'red', size =)
+
+```
+
+```{r}
+
+# Log-Rank Test
+s2 <- survfit(surv_obj ~ chemo, data = df) # Difference Between Patients who Received Chemo or Not
+
+# Kaplan-Meier Curve
+ggsurvplot(s2, data = df,
+           size = 1,
+           palette = c('orange', 'green'),
+           censor.shape = '|', censor.size = 4,
+           conf.int = TRUE,
+           pval = TRUE,
+           risk.table = TRUE, 
+           risk.table.col = 'strata', 
+           legend.labs = list('0' = 'No Chemo', '1' = 'Chemo'),
+           risk.table.height = 0.3,
+           ggtheme = theme_bw())
+
+```
+
+
+```{r}
+
+# Now, we can Compute the Test of the Difference Between the Survival Curves (i.e., are the Differences in Survival Rates between Patients who did/did not Receive Chemo, significant?)
+
+# Comparing Survival 'rtimes' Between Groups ->. Log-Rank Test
+
+logrankres_chemo <- survdiff(Surv(rtime_yrs, status) ~ chemo, data = df)
+logrankres_chemo # No. of Observed Events are After Censoring
+
+# p-val = 0.4 -> not Significant Difference between getting Chemo or Not
+
+```
+
+```{r}
+
+# What about Hormonal Treatment?
+logrankres_hor <- survdiff(Surv(rtime_yrs, status) ~ hormon, data = df)
+logrankres_hor
+
+# p-value of 0.003 -> There is a Statistically Significant Difference between Patients who Received and did Not Receive Hormonal Therapy
+
+```
+
+```{r}
+
+# Cox Regression
+## Let's Observe Differences when Multiple Other Covariates (Predictors) are also Added in
+## "Surv(rtime_yrs, status)" = Response variable and Time taken for it to occur
+## "~ hormon +..." = Predictors being Tested on how they Influence the Risk (Hazard) of an Event (in this case: the Status becoming 1 - Death - or 0 - Still Alive)
+
+cox_res <- coxph(Surv(rtime_yrs, status) ~ hormon + chemo + size + er + pgr + nodes + grade + age + meno, data = df)
+cox_res
+
+```
+
+```{r}
+
+# Building & Implementing a Simple Cox Regression Model
+# This one will have a Binary Categorical Target column
+
+df$treatment <- rep(c('drugA', 'placebo'), nrow(df)/2)
+table(df$treatment) # Nice; we have Exactly the same Amount of Patients here who Received the (Imaginary) Drug as those who did Not
+
+# Let's See now
+
+cox_res2 <- coxph(Surv(rtime_yrs, status) ~ hormon + treatment, data = df)
+
+cox_res2
+
+
+```
+
+```{r}
+
+# Let's Look at the Summary of the Main Cox Regression Model
+
+summary(cox_res)
+
+# "exp(coef)" = Hazard Ratio -> If we hold all other variables Constant, Patients who get the Variable in-question have a Relapse of (1 - *exp(coef)*)*100 %
+
+```
+
+
+```{r}
+
+# But, before Interpreting these Results^, let's Confirm if the Hazard Ratios between each Two-Group combo remain Constant over Time
+# The Cox Model assumes that the Hazard Ratios^ remain Constant
+
+test <- survival::cox.zph(cox_res)
+test
+
+## If p-value < 0.05 = Hazard Ratios (Proportional Hazards) are NOT Constant over Time
+## Chi-Squared Test Statistic x Stronger the Violation of the Assumptions
+
+## Results: Many of the Covariates have Hazard Ratios that are NOT Constant over Time (p-values < 0.05)
+
+```
+
+```{r}
+
+# Let's Plot the Schoenfeld Residuals over Time, for each Covariate
+
+survminer::ggcoxzph(test, point.size = 0.1)
+
+# Interpreting the Plots: 
+## Residuals are Scattered around Zero with no Clear Trend/Pattern = Proportional Hazards Assumption is Reasonable (Residuals are Constant)
+## Linear Trends might suggest Violations of the Proportional Hazards Assumption (indicating Time-dependent effect)
+## Spread of Residuals Constant over Time (Parallelism) = Might indicate that Residuals are more-or-less Constant over Time
+
+```
+
+```{r}
+
+# Visualizing Hazard Ratios with a Forest Plot
+
+ggforest(cox_res, data = df)
+
+```
+```{r}
+
+# Readying up DataFrames for the Next, Advanced Stages of the Project
+
+library(broom)
+
+s2 <- tidy(s2)
+cox_res <- tidy(cox_res)
+test_table <- test$table
+test <- as.data.frame(test_table)
+logrankres_chemo <- broom::tidy(logrankres_chemo)
+logrankres_hor <- broom::tidy(logrankres_hor)
+
+# Survival Curve Object the Way I want it
+
+s1 <- summary(s1)
+
+s1 <- data.frame(
+  time = s1$time,
+  n.risk = s1$n.risk,
+  n.event = s1$n.event,
+  surv = s1$surv,
+  stderr = s1$std.err,
+  low_ci = s1$conf.int[1],
+  upp_ci = s1$conf.int[2]
+)
+
+```
+
+```{r}
+
+# Exporting the DataFrames to CSV files
+
+write.csv(df, file = "df.csv", row.names = FALSE)
+write.csv(s1, file = "survival_curve.csv", row.names = FALSE) # Survival Curve
+write.csv(s2, file = "logrank_curve.csv", row.names = FALSE) # Log-Rank Curve
+write.csv(cox_res, file = "cox_regression.csv", row.names = FALSE) # Cox Regression Model
+write.csv(test, file = "hazard_ratios.csv", row.names = FALSE) # Hazard Ratios
+write.csv(logrankres_chemo, file = "logrank_chemo.csv", row.names = FALSE) # Hazard Ratios
+write.csv(logrankres_hor, file = "logrank_hormonaltreatment.csv", row.names = FALSE) # Hazard Ratios
+
+```
+
+```{r}
+
+library(dplyr)
+
+df_surv <- df %>%
+  mutate(
+    surv_prob = approx(
+      x = s1$time,
+      y = s1$estimate,
+      xout = rtime_yrs,
+      method = "constant",
+      f = 0,
+      rule = 2
+    )$y
+  )
+
+df_surv
+
+# For each patient, this:
+## Finds the closest survival time ≤ their follow-up
+## Assigns the Kaplan–Meier survival probability
+
+# Let's Save this as well
+write.csv(df_surv, file = "df_survivalcurve_comb.csv", row.names = FALSE)
+
+```
+
+
