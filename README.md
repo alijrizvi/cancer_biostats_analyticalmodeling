@@ -1,5 +1,5 @@
 # A Biostatistical Approach to Breast Cancer With Advanced Analytics & Modeling
-Check it out: **https://medium.com/ai-in-plain-english/a-biostatistical-approach-to-breast-cancer-with-advanced-analytics-modeling-15b69864abee**
+FULL READ: **https://medium.com/ai-in-plain-english/a-biostatistical-approach-to-breast-cancer-with-advanced-analytics-modeling-15b69864abee**
 
 # Overview
 
